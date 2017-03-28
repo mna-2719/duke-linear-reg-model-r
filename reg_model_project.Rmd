@@ -1,0 +1,246 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+* * *
+
+For ease of use, we subset the dataset and will continue only with the variables which are favorable for us.
+
+```{r}
+movie_sub <- dplyr::tbl_df(movies)
+movie_sub <- dplyr::select(movie_sub, title,genre, runtime, mpaa_rating, imdb_rating, imdb_num_votes, critics_rating, critics_score, audience_rating, audience_score, top200_box)
+```
+
+
+## Part 1: Data
+
+The dataset "movies" contains 651 randomly sampled movies produced and released before 2016. The movies are from US-based Studios, because MPAA Ratings in the data applies only to American films. This dataset includes information from both Rotten Tomatoes and IMDb.
+
+In this report, we are going to try to generalize the factors that affect the popularity of movies using this data. Such generalization might only be applicable to US-based movies. Since the data is collected randomly from a sample population of all the people who have seen the movie we might be able to use this data to see what affects a movie's popularity.
+
+This information suggests the dataset should be considered the result of an observational retrospective study that uses a random sampling design to select a representative sample from U.S. movies. When random sampling has been employed in data collection, the results should be generalizable to the target population. Therefore, the results of the analysis should be generalizable to all the movies released between 1970 - 2014.
+
+The potential bias in the data is that the audience ratings are only collected from either IMDB or Rotten Tomatoes which is limited to only people who register and take the time to rate the movies in this sites as compared to all the people who have seen the movie.
+
+* * *
+
+## Part 2: Research question
+
+To obtain the best information about the quality of a movie before a movie is released, consumers rely on movie critics as their guide. Movie critics act as advisors to consumers telling them which movies will be worth their money. Their reviews can tell their readers, before they decide to see a movie or not, how funny, entertaining, well-acted, and gripping a variety of movies are. Readers can then take this information and use it to decide whether to spend their money on a movie or a more useful alternative.
+
+The main question here will be; 
+Is there any association between critic score `critics_score` and audience score `audience_score`? Moreover, among chosen explanatory variables (critics score on Rotten Tomatoes `critics_score`, number of votes on IMDB `imdb_num_votes`, rating on IMDB `imdb_rating`, critics rating on Rotten Tomatoes `critics_rating`) which one affects the audience score `audience_score` more? 
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+We analyzed the relationship between `audience_score` and `critics_score` using a scatter plot and movies colored with regards to their genre to see which genre will get higher critics score so we can assess the relationship between critics score and audience score further. As we can see, movies in comedy, documentary, and drama get a higher critics score.
+
+
+```{r}
+qplot(critics_score,audience_score,colour=genre, data=movie_sub)
+```
+
+In next step, the movies were categorized based on the critics rating. As the plot shows, Certified Fresh and Fresh, tend to have a higher audience score.
+
+```{r}
+qplot(critics_score,audience_score,colour=critics_rating, data=movie_sub)
+```
+
+To see which MPAA rating does tend to have higher audience score, we used the following scatter plot. As the plot depicts, there's a good mix of the movie.
+
+```{r}
+qplot(critics_score,audience_score,colour=mpaa_rating, data=movie_sub)
+```
+
+The relationship between critics score and audience score with regard to being as top 200 movies, is shown in the following scatter plot. This plot demonstrates that being in the top 200 movies does not necessarily lead to having higher audience score.
+
+```{r}
+qplot(critics_score,audience_score,colour=top200_box, data=movie_sub)
+```
+
+To see what genre of movies has higher audience score and their distribution, we utilized the following graph. As the plot demonstrates, documentary films, tend to have higher audience score.
+
+```{r}
+qplot(audience_score,colour=genre, data=movie_sub, geom="density")
+```
+
+Now we can see if there is a linear relationship between audience score and critics score. As the plot depicts, there might be a linear relationship between two scores (`critics_score` and `audience_score`).
+
+```{r}
+ggplot(data = movie_sub, aes(x = critics_score, y = audience_score)) +
+    geom_jitter() +
+  geom_smooth(method = "lm")
+```
+
+
+* * *
+
+## Part 4: Modeling
+
+To get started, we will build a linear model using all variables;
+
+```{r}
+model_full <- lm(audience_score ~ genre + runtime + mpaa_rating + imdb_rating + imdb_num_votes + critics_rating + critics_score, data=movie_sub)
+
+summary(model_full)
+```
+
+Since MPAA rating (`mpaa_rating`) has large p-value, it may not be a good predictor for audience score.
+
+```{r}
+model1 <- lm(audience_score ~ genre + runtime + imdb_rating + imdb_num_votes + critics_rating + critics_score, data = movie_sub)
+
+summary(model1)
+```
+
+Critics score has a high p-value as well, in the next step, we will remove `critics_score` to see what will happen to the model;
+
+```{r}
+model2 <- lm(audience_score ~ genre + runtime + imdb_rating + imdb_num_votes + critics_rating, data = movie_sub)
+
+summary(model2)
+```
+
+Now, we will see what will happen if we remove `genre` as well;
+
+```{r}
+model3 <- lm(audience_score ~ runtime + imdb_rating + imdb_num_votes + critics_rating, data = movie_sub)
+
+summary(model3)
+```
+
+While `genre` removed, the adjusted R-squared decreased as well, so we will keep `genre` in our model.
+
+```{r}
+model4 <- lm(audience_score ~  genre + runtime + imdb_rating + critics_rating, data = movie_sub,na.action="na.exclude")
+
+summary(model4)
+```
+
+The above summary shows that `genre`, `runtime`, ` imdb_rating` and ` critics_rating` explain 76% of variability of `audience_score` (Adjusted R-sqaure is 76%).
+
+```{r}
+model_final <- model4
+```
+
+Multiple linear regression has some inherent assumptions that we should evaluate:
+
+1-Each variable is linearly related to the outcome
+2-The residuals of the model are nearly normal
+3-The variability of the residuals is almost constant
+4-The residuals are independent
+
+Let's evaluate each of these assumptions.
+
+**Linear relationships between Numerical x and y**
+
+```{r}
+model_resid <- residuals(model_final,type="deviance")
+```
+
+
+We extract model residuals and save them as a new dataset and then plot residuals.
+
+```{r}
+plot(model_resid, main = "Residuals vs. Critics Score", xlab = "", ylab = "Residuals")
+abline(h=0)
+```
+
+
+**Nearly normal residuals with mean 0**
+
+```{r}
+par(mfrow=c(1,2))
+hist(model_final$residuals, main = "Histogram of Residuals")
+qqnorm(model_final$residuals, main = "Normal Probability Plot of Residuals")
+qqline(model_final$residuals)
+```
+
+We see a little bit of a skew in the residuals. However, the skew does not look too bad. Moreover, looking at the normal probability plot as well, except for at the tail areas, we do not see significant deviations from the mean. So we can say that this condition seems to be satisfied.
+
+**Constant variablility of residuals is nearly constant**
+
+```{r}
+par(mfrow=c(1,2))
+plot(model_final$residuals ~ model_final$fitted.values, main = "Residuals vs. Fitted")
+abline(h=0)
+plot(abs(model_final$residuals) ~ model_final$fitted.values, main = "Absolute Value of Residuals vs. Fitted")
+abline(h=0)
+```
+
+We do not see a fan shape here. It appears that the variability of the residual stays constant as the value of the fitted or the predicted values change, so, the constant variability condition seems to be met.
+
+The absolute value of residuals plot can be thought of simply the first plot folded in half. So if we were to see a fan shape in the first plot, we would see a triangle in the absolute value of residuals versus fitted plot. Doesn't exactly seem to be the case, so it seems like this condition is met as well.
+
+
+**Independent residuals**
+
+Independent residuals means independent observations. If we don not have any time series structure, we do not have another diagnostic approach to see whether residuals are independent or not. The sampling of the data to obtain independent observations was discussed at the beginning of this analysis, and we reached the conclusion that the data is a random sample and is generalizable.
+
+* * *
+
+## Part 5: Prediction
+
+The movie which audience score we will try to predict is **Passengers (2016)**. Using data from IMDB and Rotten Tomatoes a dataframe is created:
+
+http://www.imdb.com/title/tt1355644
+
+https://www.rottentomatoes.com/m/passengers_2016/
+
+```{r}
+passen <- data.frame(genre = "Action & Adventure", runtime = 116, imdb_rating = 7.0,  critics_rating = "Rotten")
+
+predict(model_final, newdata=passen, interval='confidence')
+```
+
+We will now predict the audience score with our model.
+
+```{r}
+predict(model_final, newdata=passen, interval='prediction')
+```
+
+Note: The actual `audience_score` for **Passengers (2016)** is **65%**.
+
+With this information we can conclude that we are 95% confident that the actual `audience_score` for **Passengers (2016)** is between 48.45 and 87.13. The model returns an interval that includes our predicted value of 67.79.
+
+* * *
+
+## Part 6: Conclusion
+
+The model provided sufficient accuracy to predict the value of a 2016 movie properly and the predicted value fell within the 95% confidence levels. However, it is clear the model needs improvement. We can explain only **76%** of the variance of `audience_score`. In the future we might consider:
+
+**.**	Perhaps not all the explanatory variables are linear.Using a polynomial or other non-linear regression analysis would provide a higher performing predictive model.
+
+**.**	Add other data to the model to improve model's accuracy.
+
+**.**	Perhaps a larger set of data would help improve the model.
+
+**.**	Testing some variable transformation may contribute to improving the model.
+
+
+
